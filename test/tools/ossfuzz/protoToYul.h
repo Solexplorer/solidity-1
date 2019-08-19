@@ -41,13 +41,18 @@ public:
 	ProtoConverter()
 	{
 		m_numLiveVars = 0;
+		m_invisibleVarsInFunction = 0;
+		m_visibleFunctionIndex = 0;
 		m_numVarsPerScope.push(m_numLiveVars);
-		m_numFunctionSets = 0;
+		m_numFunctionsNoRet = 0;
+		m_numFunctionsSingleRet = 0;
+		m_numFunctionsMultiRet = 0;
 		m_inForBodyScope = false;
 		m_inForInitScope = false;
 		m_numNestedForLoops = 0;
 		m_counter = 0;
 		m_inputSize = 0;
+		m_inFunctionDef = false;
 	}
 	ProtoConverter(ProtoConverter const&) = delete;
 	ProtoConverter(ProtoConverter&&) = delete;
@@ -62,15 +67,12 @@ private:
 	void visit(Expression const&);
 	void visit(VarDecl const&);
 	void visit(EmptyVarDecl const&);
-	void visit(MultiVarDecl const&);
 	void visit(TypedVarDecl const&);
 	void visit(UnaryOp const&);
 	void visit(AssignmentStatement const&);
-	void visit(MultiAssignment const&);
 	void visit(IfStmt const&);
 	void visit(StoreFunc const&);
 	void visit(Statement const&);
-	void visit(FunctionDefinition const&);
 	void visit(ForStmt const&);
 	void visit(BoundedForStmt const&);
 	void visit(CaseStmt const&);
@@ -84,12 +86,8 @@ private:
 	void visit(RetRevStmt const&);
 	void visit(SelfDestructStmt const&);
 	void visit(TerminatingStmt const&);
-	void visit(FunctionCallNoReturnVal const&);
-	void visit(FunctionCallSingleReturnVal const&);
 	void visit(FunctionCall const&);
-	void visit(FunctionDefinitionNoReturnVal const&);
-	void visit(FunctionDefinitionSingleReturnVal const&);
-	void visit(FunctionDefinitionMultiReturnVal const&);
+	void visit(FunctionDef const&);
 	void visit(Program const&);
 	void registerFunction(FunctionDefinition const&);
 
@@ -109,24 +107,12 @@ private:
 	template<class T>
 	void createFunctionDefAndCall(T const&, unsigned, unsigned, NumFunctionReturns);
 	std::string functionTypeToString(NumFunctionReturns _type);
+	/// Returns current index of function and increments it thereafter.
+	std::string functionTypeToIndex(NumFunctionReturns _type);
 
 	template <class T>
-	void registerFunction(T const& _x, NumFunctionReturns _type, unsigned _numOutputParams = 0)
-	{
-		unsigned numInputParams = _x.num_input_params() % modInputParams;
-		switch (_type)
-		{
-			case NumFunctionReturns::None:
-				m_functionVecNoReturnValue.push_back(numInputParams);
-				break;
-			case NumFunctionReturns::Single:
-				m_functionVecSingleReturnValue.push_back(numInputParams);
-				break;
-			case NumFunctionReturns::Multiple:
-				m_functionVecMultiReturnValue.push_back(std::make_pair(numInputParams, _numOutputParams));
-				break;
-		}
-	}
+	void registerFunction(T const& _x, NumFunctionReturns _type, unsigned _numOutputParams = 0);
+
 	/// Returns a pseudo-random dictionary token.
 	/// @param _p Enum that decides if the returned token is hex prefixed ("0x") or not
 	/// @return Dictionary token at the index computed using a
@@ -147,11 +133,16 @@ private:
 	std::stack<unsigned> m_numVarsPerScope;
 	// Number of live variables in function scope
 	unsigned m_numLiveVars;
+	/// Last variable that is in parent (ancestor) scope of function.
+	unsigned m_invisibleVarsInFunction;
+	/// Index of visible function
+	unsigned m_visibleFunctionIndex;
 	// Set that is used for deduplicating switch case literals
 	std::stack<std::set<dev::u256>> m_switchLiteralSetPerScope;
-	// Total number of function sets. A function set contains one function of each type defined by
-	// NumFunctionReturns
-	unsigned m_numFunctionSets;
+	// Total number of functions.
+	unsigned m_numFunctionsNoRet;
+	unsigned m_numFunctionsSingleRet;
+	unsigned m_numFunctionsMultiRet;
 	// Look-up table per function type that holds the number of input (output) function parameters
 	std::vector<unsigned> m_functionVecNoReturnValue;
 	std::vector<unsigned> m_functionVecSingleReturnValue;
@@ -169,6 +160,8 @@ private:
 	unsigned m_counter;
 	/// Size of protobuf input
 	unsigned m_inputSize;
+	/// predicate to keep track of function scope
+	bool m_inFunctionDef;
 };
 }
 }
