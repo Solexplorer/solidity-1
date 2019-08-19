@@ -313,14 +313,16 @@ dev::solidity::test::ParameterList ContractABIUtils::defaultParameters(size_t co
 	return parameters;
 }
 
-dev::solidity::test::ParameterList ContractABIUtils::failureParameters()
+dev::solidity::test::ParameterList ContractABIUtils::failureParameters(bytes const _bytes)
 {
 	ParameterList parameters;
 
 	parameters.push_back(Parameter{bytes(), "", ABIType{ABIType::HexString, ABIType::AlignNone, 4}, FormatInfo{}});
 	parameters.push_back(Parameter{bytes(), "", ABIType{ABIType::Hex}, FormatInfo{}});
 	parameters.push_back(Parameter{bytes(), "", ABIType{ABIType::UnsignedDec}, FormatInfo{}});
-	parameters.push_back(Parameter{bytes(), "", ABIType{ABIType::String}, FormatInfo{}});
+
+	if (_bytes.size() > 68)
+		parameters.push_back(Parameter{bytes(), "", ABIType{ABIType::String}, FormatInfo{}});
 
 	return parameters;
 }
