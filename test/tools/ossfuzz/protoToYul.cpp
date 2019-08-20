@@ -1026,6 +1026,7 @@ void ProtoConverter::visit(FunctionDef const& _x)
 	bool inFunctionDef = m_inFunctionDef;
 	m_inFunctionDef = true;
 	// Function cannot reference variables in the range [0, m_numLiveVars)
+	unsigned wasInvisible = m_invisibleVarsInFunction;
 	m_invisibleVarsInFunction = m_numLiveVars;
 	unsigned numInParams = _x.num_input_params() % modInputParams;
 	unsigned numOutParams = _x.num_output_params() % modOutputParams;
@@ -1039,6 +1040,7 @@ void ProtoConverter::visit(FunctionDef const& _x)
 	createFunctionDefAndCall(_x, numInParams, numOutParams, numReturns);
 	// Restore state
 	m_inFunctionDef = inFunctionDef;
+	m_invisibleVarsInFunction = wasInvisible;
 }
 
 void ProtoConverter::visit(Program const& _x)
