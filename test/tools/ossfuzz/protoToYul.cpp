@@ -125,7 +125,14 @@ void ProtoConverter::visit(VarRef const& _x)
 			m_numLiveVars > m_invisibleVarsInFunction,
 			"Proto fuzzer: No variables to reference inside function."
 		);
-		m_output << "x_" << _x.varnum() % m_numLiveVars + m_invisibleVarsInFunction;
+		// Variable index is computed as follows:
+		// There are m_numLiveVars variables of which m_invisibleVarsInFunction are invisible
+		// Of the remaining (m_numLiveVars - m_invisibleVarsInFunction) variables, one is
+		// picked at random.
+		// Since the first variable index is zero, variable indices [0, m_invisibleVarsInFunction - 1]
+		// are not available. So the first index that may be referenced is m_invisibleVarsInFunction,
+		// and thereafter any of the [m_invisibleVarsInFunction, m_numLiveVars) variable indices.
+		m_output << "x_" << _x.varnum() % (m_numLiveVars - m_invisibleVarsInFunction) + m_invisibleVarsInFunction;
 	}
 	else
 		m_output  << "x_" << _x.varnum() % m_numLiveVars;
