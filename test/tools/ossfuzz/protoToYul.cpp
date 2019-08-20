@@ -132,7 +132,8 @@ void ProtoConverter::visit(VarRef const& _x)
 		// Since the first variable index is zero, variable indices [0, m_invisibleVarsInFunction - 1]
 		// are not available. So the first index that may be referenced is m_invisibleVarsInFunction,
 		// and thereafter any of the [m_invisibleVarsInFunction, m_numLiveVars) variable indices.
-		m_output << "x_" << _x.varnum() % (m_numLiveVars - m_invisibleVarsInFunction) + m_invisibleVarsInFunction;
+		m_output << "x_"
+			<< _x.varnum() % (m_numLiveVars - m_invisibleVarsInFunction) + m_invisibleVarsInFunction;
 	}
 	else
 		m_output  << "x_" << _x.varnum() % m_numLiveVars;
@@ -932,8 +933,49 @@ void ProtoConverter::registerFunction(
 	}
 }
 
+void ProtoConverter::scopedFunctionCall(
+	unsigned _numInputs,
+	unsigned _numOutputs,
+	std::string _funcIndex,
+	NumFunctionReturns _type
+)
+{
+	if (_numOutputs > 0)
+		// let x_i, ..., x_n = foo()
+		m_output << "let "
+			<< dev::suffixedVariableNameList("x_", m_numLiveVars, m_numLiveVars + _numOutputs)
+			<< " := ";
+
+	// Call the function with the correct number of input parameters via calls to calldataload with
+	// incremental addresses.
+	m_output << "foo_"
+		<< functionTypeToString(_type)
+		<< "_"
+		<< _funcIndex;
+	m_output << "(";
+	for (unsigned i = 0; i < _numInputs; i++)
+	{
+		m_output << "calldataload(" << std::to_string(i*32) << ")";
+		if (i < _numInputs - 1)
+			m_output << ",";
+	}
+	m_output << ")\n";
+
+	for (unsigned i = 0; i < _numOutputs; i++)
+		m_output << "sstore(" << std::to_string(i*32) << ", x_" << m_numLiveVars + i << ")\n";
+
+	// Book keeping
+	m_numVarsPerScope.top() += _numOutputs;
+	m_numLiveVars += _numOutputs;
+}
+
 template <class T>
-void ProtoConverter::createFunctionDefAndCall(T const& _x, unsigned _numInParams, unsigned _numOutParams, NumFunctionReturns _type)
+void ProtoConverter::createFunctionDefAndCall(
+	T const& _x,
+	unsigned _numInParams,
+	unsigned _numOutParams,
+	NumFunctionReturns _type
+)
 {
 	yulAssert(
 		((_numInParams <= modInputParams - 1) && (_numOutParams <= modOutputParams - 1)),
@@ -999,32 +1041,11 @@ void ProtoConverter::createFunctionDefAndCall(T const& _x, unsigned _numInParams
 		"Proto fuzzer: Variable stack after function definition is unbalanced."
 	);
 
+	// Call function that has just been defined.
+	scopedFunctionCall(_numInParams, _numOutParams, funcIndex, _type);
+
 	// Restore for loop state
 	m_inForBodyScope = wasInForBody;
-
-	// Manually create a multi assignment using global variables
-	// This prints a_0, ..., a_k-1 for this function that returns "k" values
-//	if (_numOutParams > 0)
-//		m_output << dev::suffixedVariableNameList("a_", 0, _numOutParams) << " := ";
-
-	// Call the function with the correct number of input parameters via calls to calldataload with
-	// incremental addresses.
-//	m_output <<
-//		"foo_" <<
-//		functionTypeToString(_type) <<
-//		"_" <<
-//		funcIndex;
-//	m_output << "(";
-//	for (unsigned i = 0; i < _numInParams; i++)
-//	{
-//		m_output << "calldataload(" << std::to_string(i*32) << ")";
-//		if (i < _numInParams - 1)
-//			m_output << ",";
-//	}
-//	m_output << ")\n";
-//
-//	for (unsigned i = 0; i < _numOutParams; i++)
-//		m_output << "sstore(" << std::to_string(i*32) << ", a_" << std::to_string(i) << ")\n";
 }
 
 void ProtoConverter::visit(FunctionDef const& _x)

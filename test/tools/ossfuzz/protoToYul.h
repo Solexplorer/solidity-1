@@ -110,6 +110,15 @@ private:
 	/// Returns current index of function and increments it thereafter.
 	std::string functionTypeToIndex(NumFunctionReturns _type);
 
+	/// Makes a call to the function of type `_type` and index `_funcIndex` containing
+	/// `_numInputs` input and `_numOutputs` output parameters.
+	void scopedFunctionCall(
+		unsigned _numInputs,
+		unsigned _numOutputs,
+		std::string _funcIndex,
+		NumFunctionReturns _type
+	);
+
 	template <class T>
 	void registerFunction(T const& _x, NumFunctionReturns _type, unsigned _numOutputParams = 0);
 
