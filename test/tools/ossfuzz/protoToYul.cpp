@@ -859,7 +859,11 @@ void ProtoConverter::visit(Statement const& _x)
 		visit(_x.terminatestmt());
 		break;
 	case Statement::kFunctioncall:
-		visit(_x.functioncall());
+		// Calling a function that returns a single value is not
+		// a valid statement. Rather, single-return function calls
+		// are treated as expressions.
+		if (_x.functioncall().ret() != FunctionCall::SINGLE)
+			visit(_x.functioncall());
 		break;
 	case Statement::kFuncdef:
 		if (!m_inForInitScope)
@@ -1022,7 +1026,7 @@ void ProtoConverter::visit(FunctionDef const& _x)
 	bool inFunctionDef = m_inFunctionDef;
 	m_inFunctionDef = true;
 	// Function cannot reference variables in the range [0, m_numLiveVars)
-	m_invisibleVarsInFunction = m_numLiveVars - 1;
+	m_invisibleVarsInFunction = m_numLiveVars;
 	unsigned numInParams = _x.num_input_params() % modInputParams;
 	unsigned numOutParams = _x.num_output_params() % modOutputParams;
 	NumFunctionReturns numReturns;
