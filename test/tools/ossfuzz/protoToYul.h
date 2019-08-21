@@ -44,9 +44,12 @@ public:
 		m_invisibleVarsInFunction = 0;
 		m_visibleFunctionIndex = 0;
 		m_numVarsPerScope.push(m_numLiveVars);
-		m_numFunctionsNoRet = 0;
-		m_numFunctionsSingleRet = 0;
-		m_numFunctionsMultiRet = 0;
+		m_numFunctionsNoRetPerScope.push(0);
+		m_numLiveFunctionsNoRet = 0;
+		m_numFunctionsSingleRetPerScope.push(0);
+		m_numLiveFunctionsSingleRet = 0;
+		m_numFunctionsMultiRetPerScope.push(0);
+		m_numLiveFunctionsMultiRet = 0;
 		m_inForBodyScope = false;
 		m_inForInitScope = false;
 		m_numNestedForLoops = 0;
@@ -149,9 +152,12 @@ private:
 	// Set that is used for deduplicating switch case literals
 	std::stack<std::set<dev::u256>> m_switchLiteralSetPerScope;
 	// Total number of functions.
-	unsigned m_numFunctionsNoRet;
-	unsigned m_numFunctionsSingleRet;
-	unsigned m_numFunctionsMultiRet;
+	std::stack<unsigned> m_numFunctionsNoRetPerScope;
+	unsigned m_numLiveFunctionsNoRet;
+	std::stack<unsigned> m_numFunctionsSingleRetPerScope;
+	unsigned m_numLiveFunctionsSingleRet;
+	std::stack<unsigned> m_numFunctionsMultiRetPerScope;
+	unsigned m_numLiveFunctionsMultiRet;
 	// Look-up table per function type that holds the number of input (output) function parameters
 	std::vector<unsigned> m_functionVecNoReturnValue;
 	std::vector<unsigned> m_functionVecSingleReturnValue;
