@@ -83,8 +83,21 @@ bool ProtoConverter::isCaseLiteralUnique(Literal const& _x)
 		mpCaseLiteralValue = dev::u256("0x" + createHex(_x.hexval()));
 		break;
 	case Literal::kStrval:
-		mpCaseLiteralValue = dev::u256(dev::h256(createAlphaNum(_x.strval()), dev::h256::FromBinary, dev::h256::AlignLeft));
+	{
+		string literal = createAlphaNum(_x.strval());
+		// Empty string literal evaluates to zero. Therefore, we check
+		// if the value "0x0" exists in our set if the literal happens
+		// to be empty.
+		if (
+			literal.empty() &&
+			m_switchLiteralSetPerScope.top().find(u256("0x0"))	!=
+			m_switchLiteralSetPerScope.top().end()
+		)
+			return false;
+		else
+			mpCaseLiteralValue = dev::u256(dev::h256(literal, dev::h256::FromBinary, dev::h256::AlignLeft));
 		break;
+	}
 	case Literal::LITERAL_ONEOF_NOT_SET:
 		// If the proto generator does not generate a valid Literal
 		// we generate a case 1:
@@ -92,8 +105,7 @@ bool ProtoConverter::isCaseLiteralUnique(Literal const& _x)
 		break;
 	}
 
-	bool isUnique = m_switchLiteralSetPerScope.top().insert(mpCaseLiteralValue).second;
-	return isUnique;
+	return m_switchLiteralSetPerScope.top().insert(mpCaseLiteralValue).second;
 }
 
 void ProtoConverter::visit(Literal const& _x)
