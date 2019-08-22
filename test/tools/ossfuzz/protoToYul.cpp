@@ -720,16 +720,22 @@ void ProtoConverter::visit(BoundedForStmt const& _x)
 void ProtoConverter::visit(CaseStmt const& _x)
 {
 	string literal = visit(_x.case_lit());
-	bool isUnique;
 	u256 literalVal;
 	// Convert string to u256 before looking for duplicate case literals
 	if (_x.case_lit().has_strval())
-		literalVal = u256(h256(literal, h256::FromBinary, h256::AlignLeft));
+		// Empty string will be formatted as "\"\"" by the literal
+		// visitor. Here, we are explicitly defining such an empty
+		// string to evaluate to the same value as "0".
+		if (literal == "\"\"")
+			literalVal = u256(0);
+		else
+			literalVal = u256(h256(literal, h256::FromBinary, h256::AlignLeft));
 	else
 		literalVal = u256(literal);
+
 	// Check if set insertion fails (case literal present) or succeeds (case literal
 	// absent).
-	isUnique = m_switchLiteralSetPerScope.top().insert(literalVal).second;
+	bool isUnique = m_switchLiteralSetPerScope.top().insert(literalVal).second;
 	if (isUnique)
 	{
 		m_output << "case " << literal << " ";
