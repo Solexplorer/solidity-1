@@ -70,32 +70,26 @@ string ProtoConverter::createAlphaNum(string const& _strBytes)
 
 bool ProtoConverter::isCaseLiteralUnique(Literal const& _x)
 {
-	dev::u256 mpCaseLiteralValue;
+	u256 mpCaseLiteralValue;
 
 	switch (_x.literal_oneof_case())
 	{
 	case Literal::kIntval:
-		mpCaseLiteralValue = dev::u256(_x.intval());
+		mpCaseLiteralValue = u256(_x.intval());
 		break;
 	case Literal::kHexval:
 		// We need to ask boost mp library to treat this
 		// as a hex value. Hence the "0x" prefix.
-		mpCaseLiteralValue = dev::u256("0x" + createHex(_x.hexval()));
+		mpCaseLiteralValue = u256("0x" + createHex(_x.hexval()));
 		break;
 	case Literal::kStrval:
 	{
 		string literal = createAlphaNum(_x.strval());
-		// Empty string literal evaluates to zero. Therefore, we check
-		// if the value "0x0" exists in our set if the literal happens
-		// to be empty.
-		if (
-			literal.empty() &&
-			m_switchLiteralSetPerScope.top().find(u256("0x0"))	!=
-			m_switchLiteralSetPerScope.top().end()
-		)
-			return false;
+		// Empty string literal evaluates to zero.
+		if (literal.empty())
+			mpCaseLiteralValue = u256("0x0");
 		else
-			mpCaseLiteralValue = dev::u256(dev::h256(literal, dev::h256::FromBinary, dev::h256::AlignLeft));
+			mpCaseLiteralValue = u256(h256(literal, h256::FromBinary, h256::AlignLeft));
 		break;
 	}
 	case Literal::LITERAL_ONEOF_NOT_SET:
@@ -640,7 +634,7 @@ void ProtoConverter::visit(FunctionCall const& _x)
 				// (k-p)+1 = numOutParams
 				m_output <<
 				         "let " <<
-				         dev::suffixedVariableNameList("x_", m_numLiveVars, m_numLiveVars + numOutParams) <<
+				         suffixedVariableNameList("x_", m_numLiveVars, m_numLiveVars + numOutParams) <<
 				         " := ";
 
 				// Create RHS of multi var decl
@@ -777,7 +771,7 @@ void ProtoConverter::visit(SwitchStmt const& _x)
 {
 	if (_x.case_stmt_size() > 0 || _x.has_default_block())
 	{
-		std::set<dev::u256> s;
+		std::set<u256> s;
 		m_switchLiteralSetPerScope.push(s);
 		m_output << "switch ";
 		visit(_x.switch_expr());
@@ -969,7 +963,7 @@ void ProtoConverter::scopedFunctionCall(
 	if (_numOutputs > 0)
 		// let x_i, ..., x_n = foo()
 		m_output << "let "
-			<< dev::suffixedVariableNameList("x_", m_numLiveVars, m_numLiveVars + _numOutputs)
+			<< suffixedVariableNameList("x_", m_numLiveVars, m_numLiveVars + _numOutputs)
 			<< " := ";
 
 	// Call the function with the correct number of input parameters via calls to calldataload with
@@ -1025,7 +1019,7 @@ void ProtoConverter::createFunctionDefAndCall(
 	m_output << "(";
 	if (_numInParams > 0)
 		m_output <<
-			dev::suffixedVariableNameList(
+			suffixedVariableNameList(
 				"x_",
 				numOuterVars,
 				numOuterVars + _numInParams
@@ -1041,7 +1035,7 @@ void ProtoConverter::createFunctionDefAndCall(
 	{
 		m_output <<
 			" -> " <<
-			dev::suffixedVariableNameList(
+			suffixedVariableNameList(
 				"x_",
 				_numInParams + numOuterVars,
 				_numInParams + numOuterVars + _numOutParams
