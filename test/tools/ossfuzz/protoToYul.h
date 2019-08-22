@@ -107,6 +107,33 @@ private:
 	/// Returns current index of function and increments it thereafter.
 	std::string functionTypeToIndex(NumFunctionReturns _type);
 
+	/// Return true if at least one variable declaration is in scope,
+	/// false otherwise.
+	/// @return True in the following cases:
+	/// - If we are inside a function that has already declared a variable
+	/// - If there is at least one variable declaration that is
+	/// in scope
+	bool varDeclAvailable();
+
+	/// Return true if a function call cannot be made, false otherwise.
+	/// @param _type is an enum denoting the type of function call. It
+	/// can be one of NONE, SINGLE, MULTIDECL, MULTIASSIGN.
+	/// 			NONE -> Function call does not return a value
+	///				SINGLE -> Function call returns a single value
+	///				MULTIDECL -> Function call returns more than one value
+	///					and it is used to create a multi declaration
+	///					statement
+	///				MULTIASSIGN -> Function call returns more than one value
+	///					and it is used to create a multi assignment
+	///					statement
+	/// @return True if the function call cannot be created for one of the
+	/// following reasons
+	//   - It is a SINGLE function call (we reserve SINGLE functions for
+	//   expressions)
+	//   - It is a MULTIASSIGN function call and we do not have any
+	//   variables available for assignment.
+	bool functionCallNotPossible(FunctionCall_Returns _type);
+
 	/// Makes a call to the function of type `_type` and index `_funcIndex` containing
 	/// `_numInputs` input and `_numOutputs` output parameters.
 	void scopedFunctionCall(

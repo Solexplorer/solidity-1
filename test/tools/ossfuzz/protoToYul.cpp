@@ -115,17 +115,25 @@ void ProtoConverter::visit(Literal const& _x)
 	}
 }
 
+bool ProtoConverter::varDeclAvailable()
+{
+	if (m_inFunctionDef)
+		return m_numLiveVars > m_invisibleVarsInFunction;
+	else
+		return m_numLiveVars > 0;
+}
+
+bool ProtoConverter::functionCallNotPossible(FunctionCall_Returns _type)
+{
+	return _type == FunctionCall::SINGLE ||
+		(_type == FunctionCall::MULTIASSIGN && !varDeclAvailable());
+}
+
 void ProtoConverter::visit(VarRef const& _x)
 {
-	// If there are no variables in scope to reference, we output a constant
-	// from the optimizer dictionary.
-	if (m_numLiveVars == 0)
-	{
-		m_output << dictionaryToken();
-		return;
-	}
-
 	// If we are here, it means that we have at least one variable to reference.
+	yulAssert(m_numLiveVars > 0, "Proto fuzzer: No variables to reference.");
+
 	// However, if this variable reference happens inside a function, we need
 	// to take care to not reference a variable that is outside the scope of the
 	// function itself. m_inFunctionDef is a flag that is used to implement this
@@ -133,23 +141,13 @@ void ProtoConverter::visit(VarRef const& _x)
 	if (m_inFunctionDef)
 	{
 		// Number of variables that are in outer scope + function inner scope
-		// cannot be lesser than the number of variables in outer scope. In
-		// the worst case, they are equal (when not a single variable has been
-		// declared inside the function body).
+		// must be greater than the number of variables in outer scope.
 		yulAssert(
-			m_numLiveVars >= m_invisibleVarsInFunction,
+			m_numLiveVars > m_invisibleVarsInFunction,
 			"Proto fuzzer: Fewer live variables than invisible variables."
 		);
-		// If the function has not yet declared a variable, we output a constant
-		// from the optimizer dictionary.
-		if (m_numLiveVars == m_invisibleVarsInFunction)
-		{
-			m_output << dictionaryToken();
-			return;
-		}
 
-		// If at least one variable declaration exists in function scope, the index of
-		// the referenced variable is computed as follows:
+		// The index of the referenced variable is computed as follows:
 		// There are m_numLiveVars variables of which m_invisibleVarsInFunction are invisible
 		// Of the remaining (m_numLiveVars - m_invisibleVarsInFunction) variables, one is
 		// picked at random.
@@ -171,7 +169,13 @@ void ProtoConverter::visit(Expression const& _x)
 	switch (_x.expr_oneof_case())
 	{
 	case Expression::kVarref:
-		visit(_x.varref());
+		// If the expression requires a variable reference that we cannot provide
+		// (because there are no variables in scope), we silently output a literal
+		// expression from the optimizer dictionary.
+		if (!varDeclAvailable())
+			m_output << dictionaryToken();
+		else
+			visit(_x.varref());
 		break;
 	case Expression::kCons:
 		visit(_x.cons());
@@ -194,7 +198,7 @@ void ProtoConverter::visit(Expression const& _x)
 		if (_x.func_expr().ret() == FunctionCall::SINGLE)
 			visit(_x.func_expr());
 		else
-			m_output << "1";
+			m_output << dictionaryToken();
 		break;
 	case Expression::EXPR_ONEOF_NOT_SET:
 		m_output << dictionaryToken();
@@ -847,7 +851,10 @@ void ProtoConverter::visit(Statement const& _x)
 			visit(_x.decl());
 		break;
 	case Statement::kAssignment:
-		visit(_x.assignment());
+		// Create an assignment statement only if there is at least one variable
+		// declaration that is in scope.
+		if (varDeclAvailable())
+			visit(_x.assignment());
 		break;
 	case Statement::kIfstmt:
 		visit(_x.ifstmt());
@@ -888,11 +895,10 @@ void ProtoConverter::visit(Statement const& _x)
 		visit(_x.terminatestmt());
 		break;
 	case Statement::kFunctioncall:
-		// Calling a function that returns a single value is not
-		// a valid statement. Rather, single-return function calls
-		// are treated as expressions.
-		if (_x.functioncall().ret() != FunctionCall::SINGLE)
-			visit(_x.functioncall());
+		// Return early if a function call cannot be created
+		if (functionCallNotPossible(_x.functioncall().ret()))
+			return;
+		visit(_x.functioncall());
 		break;
 	case Statement::kFuncdef:
 		if (!m_inForInitScope)
