@@ -560,7 +560,7 @@ void ProtoConverter::visit(FunctionCall const& _x)
 	case FunctionCall::ZERO:
 		if (m_functionVecNoReturnValue.size() > 0)
 		{
-			funcId = (static_cast<size_t>(_x.func_index()) % m_numLiveFunctionsNoRet);
+			funcId = (static_cast<size_t>(_x.func_index()) % m_functionVecNoReturnValue.size());
 			numInParams = m_functionVecNoReturnValue.at(funcId);
 			m_output << "foo_" << functionTypeToString(NumFunctionReturns::None) << "_" << funcId;
 			m_output << "(";
@@ -571,7 +571,7 @@ void ProtoConverter::visit(FunctionCall const& _x)
 	case FunctionCall::SINGLE:
 		if (m_functionVecSingleReturnValue.size() > 0)
 		{
-			funcId = (static_cast<size_t>(_x.func_index()) % m_numLiveFunctionsSingleRet);
+			funcId = (static_cast<size_t>(_x.func_index()) % m_functionVecSingleReturnValue.size());
 			numInParams = m_functionVecSingleReturnValue.at(funcId);
 			m_output << "foo_" << functionTypeToString(NumFunctionReturns::Single) << "_" << funcId;
 			m_output << "(";
@@ -587,7 +587,7 @@ void ProtoConverter::visit(FunctionCall const& _x)
 		if (!m_inForInitScope)
 		{
 			if (m_functionVecMultiReturnValue.size() > 0) {
-				funcId = (static_cast<size_t>(_x.func_index()) % m_numLiveFunctionsMultiRet);
+				funcId = (static_cast<size_t>(_x.func_index()) % m_functionVecMultiReturnValue.size());
 
 				numInParams = m_functionVecMultiReturnValue.at(funcId).first;
 				numOutParams = m_functionVecMultiReturnValue.at(funcId).second;
@@ -620,7 +620,7 @@ void ProtoConverter::visit(FunctionCall const& _x)
 		break;
 	case FunctionCall::MULTIASSIGN:
 		if (m_functionVecMultiReturnValue.size() > 0) {
-			funcId = (static_cast<size_t>(_x.func_index()) % m_numLiveFunctionsMultiRet);
+			funcId = (static_cast<size_t>(_x.func_index()) % m_functionVecMultiReturnValue.size());
 			numInParams = m_functionVecMultiReturnValue.at(funcId).first;
 			numOutParams = m_functionVecMultiReturnValue.at(funcId).second;
 			yulAssert(
@@ -887,21 +887,12 @@ void ProtoConverter::visit(Block const& _x)
 	if (_x.statements_size() > 0)
 	{
 		m_numVarsPerScope.push(0);
-		m_numFunctionsNoRetPerScope.push(0);
-		m_numFunctionsSingleRetPerScope.push(0);
-		m_numFunctionsMultiRetPerScope.push(0);
 		m_output << "{\n";
 		for (auto const& st: _x.statements())
 			visit(st);
 		m_output << "}\n";
 		m_numLiveVars -= m_numVarsPerScope.top();
-		m_numLiveFunctionsNoRet -= m_numFunctionsNoRetPerScope.top();
-		m_numLiveFunctionsSingleRet -= m_numFunctionsSingleRetPerScope.top();
-		m_numLiveFunctionsMultiRet -= m_numFunctionsMultiRetPerScope.top();
 		m_numVarsPerScope.pop();
-		m_numFunctionsNoRetPerScope.pop();
-		m_numFunctionsSingleRetPerScope.pop();
-		m_numFunctionsMultiRetPerScope.pop();
 	}
 	else
 		m_output << "{}\n";
@@ -910,22 +901,13 @@ void ProtoConverter::visit(Block const& _x)
 void ProtoConverter::visit(SpecialBlock const& _x)
 {
 	m_numVarsPerScope.push(0);
-	m_numFunctionsNoRetPerScope.push(0);
-	m_numFunctionsSingleRetPerScope.push(0);
-	m_numFunctionsMultiRetPerScope.push(0);
 	m_output << "{\n";
 	visit(_x.var());
 	if (_x.statements_size() > 0)
 		for (auto const& st: _x.statements())
 			visit(st);
 	m_numLiveVars -= m_numVarsPerScope.top();
-	m_numLiveFunctionsNoRet -= m_numFunctionsNoRetPerScope.top();
-	m_numLiveFunctionsSingleRet -= m_numFunctionsSingleRetPerScope.top();
-	m_numLiveFunctionsMultiRet -= m_numFunctionsMultiRetPerScope.top();
 	m_numVarsPerScope.pop();
-	m_numFunctionsNoRetPerScope.pop();
-	m_numFunctionsSingleRetPerScope.pop();
-	m_numFunctionsMultiRetPerScope.pop();
 	m_output << "}\n";
 }
 
@@ -1009,13 +991,15 @@ void ProtoConverter::createFunctionDefAndCall(
 	// Signature
 	// This creates function foo_<noreturn|singlereturn|multireturn>_<index>(x_0,...,x_n)
 	std::string funcIndex = functionTypeToIndex(_type);
-	m_output << "function foo_"
-		<< functionTypeToString(_type)
-		<< "_"
-		<< funcIndex;
+	m_output <<
+		"function foo_" <<
+		functionTypeToString(_type) <<
+		"_" <<
+		funcIndex;
 	m_output << "(";
 	if (_numInParams > 0)
-		m_output << dev::suffixedVariableNameList(
+		m_output <<
+			dev::suffixedVariableNameList(
 				"x_",
 				numOuterVars,
 				numOuterVars + _numInParams
@@ -1029,8 +1013,9 @@ void ProtoConverter::createFunctionDefAndCall(
 	// This creates -> x_n+1,...,x_r
 	if (_numOutParams > 0)
 	{
-		m_output << " -> "
-			<< dev::suffixedVariableNameList(
+		m_output <<
+			" -> " <<
+			dev::suffixedVariableNameList(
 				"x_",
 				_numInParams + numOuterVars,
 				_numInParams + numOuterVars + _numOutParams
@@ -1055,8 +1040,6 @@ void ProtoConverter::createFunctionDefAndCall(
 		m_numLiveVars == numOuterVars,
 		"Proto fuzzer: Variable stack after function definition is unbalanced."
 	);
-
-	// Add function to set of functions in scope
 
 	// Call function that has just been defined.
 	scopedFunctionCall(_numInParams, _numOutParams, funcIndex, _type);
@@ -1135,13 +1118,10 @@ std::string ProtoConverter::functionTypeToIndex(NumFunctionReturns _type)
 	switch (_type)
 	{
 		case NumFunctionReturns::None:
-			m_numFunctionsNoRetPerScope.top()++;
-			return std::to_string(m_numLiveFunctionsNoRet++);
+			return std::to_string(m_numFunctionsNoRet++);
 		case NumFunctionReturns::Single:
-			m_numFunctionsSingleRetPerScope.top()++;
-			return std::to_string(m_numLiveFunctionsSingleRet++);
+			return std::to_string(m_numFunctionsSingleRet++);
 		case NumFunctionReturns::Multiple:
-			m_numFunctionsMultiRetPerScope.top()++;
-			return std::to_string(m_numLiveFunctionsMultiRet++);
+			return std::to_string(m_numFunctionsMultiRet++);
 	}
 }
