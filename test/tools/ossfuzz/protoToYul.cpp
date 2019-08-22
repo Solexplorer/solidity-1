@@ -117,24 +117,51 @@ void ProtoConverter::visit(Literal const& _x)
 
 void ProtoConverter::visit(VarRef const& _x)
 {
-	yulAssert(m_numLiveVars > 0, "Proto fuzzer: No variables to reference.");
-	// If inside function definition, we cannot reference outer-scope variable
+	// If there are no variables in scope to reference, we output a constant
+	// from the optimizer dictionary.
+	if (m_numLiveVars == 0)
+	{
+		m_output << dictionaryToken();
+		return;
+	}
+
+	// If we are here, it means that we have at least one variable to reference.
+	// However, if this variable reference happens inside a function, we need
+	// to take care to not reference a variable that is outside the scope of the
+	// function itself. m_inFunctionDef is a flag that is used to implement this
+	// requirement.
 	if (m_inFunctionDef)
 	{
+		// Number of variables that are in outer scope + function inner scope
+		// cannot be lesser than the number of variables in outer scope. In
+		// the worst case, they are equal (when not a single variable has been
+		// declared inside the function body).
 		yulAssert(
-			m_numLiveVars > m_invisibleVarsInFunction,
-			"Proto fuzzer: No variables to reference inside function."
+			m_numLiveVars >= m_invisibleVarsInFunction,
+			"Proto fuzzer: Fewer live variables than invisible variables."
 		);
-		// Variable index is computed as follows:
+		// If the function has not yet declared a variable, we output a constant
+		// from the optimizer dictionary.
+		if (m_numLiveVars == m_invisibleVarsInFunction)
+		{
+			m_output << dictionaryToken();
+			return;
+		}
+
+		// If at least one variable declaration exists in function scope, the index of
+		// the referenced variable is computed as follows:
 		// There are m_numLiveVars variables of which m_invisibleVarsInFunction are invisible
 		// Of the remaining (m_numLiveVars - m_invisibleVarsInFunction) variables, one is
 		// picked at random.
-		// Since the first variable index is zero, variable indices [0, m_invisibleVarsInFunction - 1]
-		// are not available. So the first index that may be referenced is m_invisibleVarsInFunction,
-		// and thereafter any of the [m_invisibleVarsInFunction, m_numLiveVars) variable indices.
+		// Since the first variable index is zero, variable indices
+		// [0, m_invisibleVarsInFunction - 1] are not available. So the first index that
+		// may be referenced is m_invisibleVarsInFunction, and thereafter any of the
+		// [m_invisibleVarsInFunction, m_numLiveVars) variable indices.
 		m_output << "x_"
 			<< _x.varnum() % (m_numLiveVars - m_invisibleVarsInFunction) + m_invisibleVarsInFunction;
 	}
+	// If we are not inside a function definition, we can reference variable
+	// that has been declared thus far that is in scope.
 	else
 		m_output  << "x_" << _x.varnum() % m_numLiveVars;
 }
@@ -260,12 +287,6 @@ void ProtoConverter::visit(VarDecl const& _x)
 	m_numVarsPerScope.top()++;
 	m_numLiveVars++;
 	m_output << "\n";
-}
-
-void ProtoConverter::visit(EmptyVarDecl const&)
-{
-	m_output << "let x_" << m_numLiveVars++ << "\n";
-	m_numVarsPerScope.top()++;
 }
 
 void ProtoConverter::visit(TypedVarDecl const& _x)
@@ -579,7 +600,7 @@ void ProtoConverter::visit(FunctionCall const& _x)
 			m_output << ")";
 		}
 		else
-			m_output << "1";
+			m_output << dictionaryToken();
 		break;
 	case FunctionCall::MULTIDECL:
 		// Hack: Disallow (multi) variable declarations until scope extension
@@ -898,19 +919,6 @@ void ProtoConverter::visit(Block const& _x)
 		m_output << "{}\n";
 }
 
-void ProtoConverter::visit(SpecialBlock const& _x)
-{
-	m_numVarsPerScope.push(0);
-	m_output << "{\n";
-	visit(_x.var());
-	if (_x.statements_size() > 0)
-		for (auto const& st: _x.statements())
-			visit(st);
-	m_numLiveVars -= m_numVarsPerScope.top();
-	m_numVarsPerScope.pop();
-	m_output << "}\n";
-}
-
 template <class T>
 void ProtoConverter::registerFunction(
 	T const& _x,
@@ -1031,7 +1039,7 @@ void ProtoConverter::createFunctionDefAndCall(
 	m_inForBodyScope = false;
 
 	// Body
-	visit(_x.statements());
+	visit(_x.block());
 
 	// Ensure that variable stack is balanced
 	m_numLiveVars -= m_numVarsPerScope.top();
@@ -1077,20 +1085,14 @@ void ProtoConverter::visit(Program const& _x)
 	m_inputSize = _x.ByteSizeLong();
 
 	/* Program template is as follows
-	 *      Four Globals a_0, a_1, a_2, and a_3 to hold up to four function return values
-	 *
-	 *      Repeated function definitions followed by function calls of the respective function
+	 *      Zero or more statements. If function definition is present, it is
+	 *      called post definition.
 	 *          Example: function foo(x_0) -> x_1 {}
-	 *                   a_0 := foo(calldataload(0))
-	 *                   sstore(0, a_0)
+	 *                   x_2 := foo(calldataload(0))
+	 *                   sstore(0, x_2)
 	 */
 	m_output << "{\n";
-	// Create globals at the beginning
-	// This creates let a_0, a_1, a_2, a_3 (followed by a new line)
-	m_output << "let " << dev::suffixedVariableNameList("a_", 0, modOutputParams - 1) << "\n";
-
 	visit(_x.block());
-
 	m_output << "}\n";
 }
 

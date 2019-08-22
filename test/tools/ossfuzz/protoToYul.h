@@ -61,12 +61,10 @@ public:
 private:
 	void visit(BinaryOp const&);
 	void visit(Block const&);
-	void visit(SpecialBlock const&);
 	void visit(Literal const&);
 	void visit(VarRef const&);
 	void visit(Expression const&);
 	void visit(VarDecl const&);
-	void visit(EmptyVarDecl const&);
 	void visit(TypedVarDecl const&);
 	void visit(UnaryOp const&);
 	void visit(AssignmentStatement const&);
@@ -89,7 +87,6 @@ private:
 	void visit(FunctionCall const&);
 	void visit(FunctionDef const&);
 	void visit(Program const&);
-	void registerFunction(FunctionDefinition const&);
 
 	std::string createHex(std::string const& _hexBytes);
 	std::string createAlphaNum(std::string const& _strBytes);

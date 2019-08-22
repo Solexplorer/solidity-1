@@ -281,13 +281,10 @@ message TerminatingStmt {
   }
 }
 
-// Stub for a VarDecl without an Expression on the RHS
-message EmptyVarDecl {}
-
 message FunctionDef {
   required uint32 num_input_params = 1;
   required uint32 num_output_params = 2;
-  required SpecialBlock statements = 3;
+  required Block block = 3;
 }
 
 // TODO: Make Function definition a Statement
@@ -316,16 +313,8 @@ message Block {
   repeated Statement statements = 1;
 }
 
-// Identical to Block with the addition of an empty var right at the top
-// so that we have at least one variable that is available for
-// referencing.
-message SpecialBlock {
-  required EmptyVarDecl var = 1;
-  repeated Statement statements = 2;
-}
-
 message Program {
-  required SpecialBlock block = 1;
+  required Block block = 1;
 }
 
 package yul.test.yul_fuzzer;
