@@ -61,7 +61,7 @@ public:
 private:
 	void visit(BinaryOp const&);
 	void visit(Block const&);
-	void visit(Literal const&);
+	std::string visit(Literal const&);
 	void visit(VarRef const&);
 	void visit(Expression const&);
 	void visit(VarDecl const&);
@@ -90,7 +90,7 @@ private:
 
 	std::string createHex(std::string const& _hexBytes);
 	std::string createAlphaNum(std::string const& _strBytes);
-	bool isCaseLiteralUnique(Literal const&);
+
 	enum class NumFunctionReturns
 	{
 		None,

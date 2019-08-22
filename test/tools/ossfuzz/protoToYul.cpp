@@ -68,56 +68,18 @@ string ProtoConverter::createAlphaNum(string const& _strBytes)
 	return tmp;
 }
 
-bool ProtoConverter::isCaseLiteralUnique(Literal const& _x)
-{
-	u256 mpCaseLiteralValue;
-
-	switch (_x.literal_oneof_case())
-	{
-	case Literal::kIntval:
-		mpCaseLiteralValue = u256(_x.intval());
-		break;
-	case Literal::kHexval:
-		// We need to ask boost mp library to treat this
-		// as a hex value. Hence the "0x" prefix.
-		mpCaseLiteralValue = u256("0x" + createHex(_x.hexval()));
-		break;
-	case Literal::kStrval:
-	{
-		string literal = createAlphaNum(_x.strval());
-		// Empty string literal evaluates to zero.
-		if (literal.empty())
-			mpCaseLiteralValue = u256("0x0");
-		else
-			mpCaseLiteralValue = u256(h256(literal, h256::FromBinary, h256::AlignLeft));
-		break;
-	}
-	case Literal::LITERAL_ONEOF_NOT_SET:
-		// If the proto generator does not generate a valid Literal
-		// we generate a case 1:
-		mpCaseLiteralValue = u256(dictionaryToken());
-		break;
-	}
-
-	return m_switchLiteralSetPerScope.top().insert(mpCaseLiteralValue).second;
-}
-
-void ProtoConverter::visit(Literal const& _x)
+string ProtoConverter::visit(Literal const& _x)
 {
 	switch (_x.literal_oneof_case())
 	{
 	case Literal::kIntval:
-		m_output << _x.intval();
-		break;
+		return to_string(_x.intval());
 	case Literal::kHexval:
-		m_output << "0x" << createHex(_x.hexval());
-		break;
+		return "0x" + createHex(_x.hexval());
 	case Literal::kStrval:
-		m_output << "\"" << createAlphaNum(_x.strval()) << "\"";
-		break;
+		return "\"" + createAlphaNum(_x.strval()) + "\"";
 	case Literal::LITERAL_ONEOF_NOT_SET:
-		m_output << dictionaryToken();
-		break;
+		return dictionaryToken();
 	}
 }
 
@@ -184,7 +146,7 @@ void ProtoConverter::visit(Expression const& _x)
 			visit(_x.varref());
 		break;
 	case Expression::kCons:
-		visit(_x.cons());
+		m_output << visit(_x.cons());
 		break;
 	case Expression::kBinop:
 		visit(_x.binop());
@@ -757,12 +719,20 @@ void ProtoConverter::visit(BoundedForStmt const& _x)
 
 void ProtoConverter::visit(CaseStmt const& _x)
 {
-	// Silently ignore duplicate case literals
-	if (isCaseLiteralUnique(_x.case_lit()))
+	string literal = visit(_x.case_lit());
+	bool isUnique;
+	u256 literalVal;
+	// Convert string to u256 before looking for duplicate case literals
+	if (_x.case_lit().has_strval())
+		literalVal = u256(h256(literal, h256::FromBinary, h256::AlignLeft));
+	else
+		literalVal = u256(literal);
+	// Check if set insertion fails (case literal present) or succeeds (case literal
+	// absent).
+	isUnique = m_switchLiteralSetPerScope.top().insert(literalVal).second;
+	if (isUnique)
 	{
-		m_output << "case ";
-		visit(_x.case_lit());
-		m_output << " ";
+		m_output << "case " << literal << " ";
 		visit(_x.case_block());
 	}
 }
